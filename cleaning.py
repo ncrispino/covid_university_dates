@@ -84,10 +84,17 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
         covid_dates_cleaned['STCOUNTYFP'] = covid_dates_cleaned['STCOUNTYFP'].astype(str)
         covid_dates_all = covid_dates_cleaned.merge(county_pres_percents[['STCOUNTYFP', 'county_vote_diff']], on='STCOUNTYFP', how='left')
         return covid_dates_all
+
+    def get_region(covid_dates_all):
+        census_regions = pd.read_csv('https://raw.githubusercontent.com/cphalpert/census-regions/master/us%20census%20bureau%20regions%20and%20divisions.csv')
+        covid_dates_all = (covid_dates_all.merge(census_regions, left_on='state', right_on='State Code', how='left'))                    
+        return covid_dates_all
+        
     
     covid_dates = get_census(covid_dates, census_vars)    
     covid_dates = get_covid_county(covid_dates, last_tracking_date)    
     covid_dates = get_political_lean(covid_dates, election_year)    
+    covid_dates = get_region(covid_dates)
     return covid_dates
 
 if __name__ == '__main__':
