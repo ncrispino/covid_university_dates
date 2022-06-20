@@ -91,6 +91,6 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
     return covid_dates
 
 if __name__ == '__main__':
-    covid_dates = pd.read_csv('covid_dates_nice.csv') # after basic cleaning applied to my excel file    
-    covid_dates = cleaning(covid_dates)    
-    covid_dates.to_csv('covid_dates_cleaned_script.csv', index=False)
+    covid_dates = pd.read_csv('vacc_mandates_top.csv') # after basic cleaning applied to my excel file    
+    covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='3/25/2021')    
+    covid_dates.to_csv('vacc_mandates_cleaned.csv', index=False)
