@@ -169,7 +169,7 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
         perc_dropped = 1 - new_num/old_num
         print(f'Note that {perc_dropped*100}% of samples have been dropped due to automated college searching for the college scoreboard.')
         covid_dates_all_zips['name_similarity'] = covid_dates_all_zips.apply(lambda x: cosine_similarity(x['cleaned_name_list'], x['cleaned_school.name_list']), axis=1)
-        covid_dates_all = covid_dates_all_zips.loc[covid_dates_all_zips.groupby('name')['name_similarity'].idxmax().values] # keep only college in zip code with highest similarty
+        covid_dates_all = covid_dates_all_zips.loc[covid_dates_all_zips.groupby(college_name)['name_similarity'].idxmax().values] # keep only college in zip code with highest similarty
         return covid_dates_all
 
     covid_dates = get_census(covid_dates, census_vars)    
@@ -180,10 +180,10 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
     return covid_dates
 
 if __name__ == '__main__':
-    covid_dates = pd.read_csv('covid_dates_nice.csv') # after basic cleaning applied to my excel file    
-    covid_dates = cleaning(covid_dates)    
-    covid_dates.to_csv('covid_dates_cleaned_script_school.csv', index=False) 
+    # covid_dates = pd.read_csv('covid_dates_nice.csv') # after basic cleaning applied to my excel file    
+    # covid_dates = cleaning(covid_dates)    
+    # covid_dates.to_csv('covid_dates_cleaned_script_school.csv', index=False) 
 
-    # covid_dates = pd.read_csv('vacc_mandates_top.csv') # after basic cleaning applied to my excel file    
-    # covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='3/25/2021', college_name='College')    
-    # covid_dates.to_csv('vacc_mandates_cleaned.csv', index=False)
+    covid_dates = pd.read_csv('vacc_mandates_top.csv') # after basic cleaning applied to my excel file    
+    covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='3/25/2021', college_name='College')    
+    covid_dates.to_csv('vacc_mandates_cleaned_school.csv', index=False)
