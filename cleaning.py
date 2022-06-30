@@ -18,7 +18,8 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
              election_year=2016,
              scorecard_vars = {'size': '2020.student.size'},
              call_scoreboard_api = False,
-             college_name='name'):
+             college_name='name',
+             ignore_college=False):
     """  
     Given dataframe with state and zip code will find census data for given variables and corresponding county-level covid data, 
     as well as political leaning of both the county and state. 
@@ -36,6 +37,7 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
     scorecard_vars -- dictionary with codes and names of corresponding variables from the US Dept of Education College Scorecard.
     call_scoreboard_api -- true if using a set of scorecard vars different from the default.
     college_name -- name of column in covid_dates holding college names.
+    ignore_college -- true to ignore all data obtained from specific college. Must be inputed individually by user instead.
     """
     if date_cols is not None:
         covid_dates_only_d = covid_dates[date_cols].apply(pd.to_datetime) # ensure date columns in datetime format        
@@ -176,7 +178,8 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
     covid_dates = get_covid_county(covid_dates, last_tracking_date)    
     covid_dates = get_political_lean(covid_dates, election_year)    
     covid_dates = get_region(covid_dates)
-    covid_dates = get_school_data(covid_dates, call_scoreboard_api, scorecard_vars)
+    if not ignore_college:
+        covid_dates = get_school_data(covid_dates, call_scoreboard_api, scorecard_vars)
     return covid_dates
 
 if __name__ == '__main__':
