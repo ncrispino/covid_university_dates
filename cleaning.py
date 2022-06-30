@@ -21,7 +21,7 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
              college_name='name',
              ignore_college=False):
     """  
-    Given dataframe with state and zip code will find census data for given variables and corresponding county-level covid data, 
+    Given dataframe with zip code (and no state column) will find census data for given variables and corresponding county-level covid data, 
     as well as political leaning of both the county and state. 
     Returns the original dataframe with added columns. 
     Note that anything dataframe passed to this function may not be cleaned (i.e., have columns that make no sense or burdensome column names).
@@ -66,13 +66,16 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
                 no_api_return[['state', 'county']] = x.values
                 return no_api_return
         census_var_names = list(census_vars.keys())
-        census_vars_counties = covid_dates_cleaned[['state_fips', 'county_fips_str']].drop_duplicates().apply(separate_county_fips, args=(census_var_names), axis=1)
+        census_vars_counties = covid_dates_cleaned[['state_fips', 'county_fips_str']].drop_duplicates().apply(separate_county_fips, args=(census_var_names), axis=1)      
         covid_dates_cleaned = (covid_dates_cleaned.merge(census_vars_counties, 
-                                                 left_on=['state_fips', 'county_fips_str'], 
-                                                 right_on=['state', 'county'], 
-                                                 suffixes=('', '_new'))
-                                .drop(columns=['state_new', 'county']))
+                                                left_on=['state_fips', 'county_fips_str'], 
+                                                right_on=['state', 'county'],
+                                                suffixes=('', '_new'))
+                                .drop(columns=['county']))
         return covid_dates_cleaned
+        # except:
+        #     print('Invalid zip code.')
+        #     return covid_dates_cleaned
 
     def get_covid_county(covid_dates_cleaned, last_tracking_date):
         covid_county = pd.read_csv('counties.timeseries.csv')
@@ -86,6 +89,7 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
 
     def get_political_lean(covid_dates_cleaned, election_year):
         political_control_state = {'DC': 'Dem', 'AL': 'Rep', 'AK': 'Rep', 'AZ': 'Rep', 'AR': 'Rep', 'CA': 'Dem', 'CO': 'Dem', 'CT': 'Dem', 'DE': 'Dem', 'FL': 'Rep', 'GA': 'Rep', 'HI': 'Dem', 'ID': 'Rep', 'IL': 'Dem', 'IN': 'Rep', 'IA': 'Rep', 'KS': 'Div', 'KY': 'Div', 'LA': 'Div', 'ME': 'Dem', 'MD': 'Div', 'MA': 'Div', 'MI': 'Div', 'MN': 'Div', 'MS': 'Rep', 'MO': 'Rep', 'MT': 'Div', 'NE': 'Rep', 'NV': 'Dem', 'NH': 'Div', 'NJ': 'Dem', 'NM': 'Dem', 'NY': 'Dem', 'NC': 'Div', 'ND': 'Rep', 'OH': 'Rep', 'OK': 'Rep', 'OR': 'Dem', 'PA': 'Div', 'RI': 'Dem', 'SC': 'Rep', 'SD': 'Rep', 'TN': 'Rep', 'TX': 'Rep', 'UT': 'Rep', 'VT': 'Div', 'VA': 'Dem', 'WA': 'Dem', 'WV': 'Rep', 'WI': 'Div', 'WY': 'Rep'}
+        print(covid_dates_cleaned)
         covid_dates_cleaned['political_control_state'] = covid_dates_cleaned['state'].map(political_control_state)
         county_pres = pd.read_csv('political-data/countypres_2000-2020.csv')        
         county_pres = county_pres.query("year == @election_year")
@@ -192,9 +196,9 @@ if __name__ == '__main__':
     # covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='3/25/2021', college_name='College')    
     # covid_dates.to_csv('vacc_mandates_cleaned_school.csv', index=False)
 
-    df_update = pd.DataFrame({'zip': [60091], 'ranking': [3], 'announce_date': [10], '2020.student.size': [10000], 'Type': ['Private']})
+    df_update = pd.DataFrame({'zip': [60091], 'ranking': [3], 'announce_date': [10], '2020.student.size': [10000], 'Type': ['Private']})    
     df_update = cleaning(df_update, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True) 
-    df_update.drop(columns=['zip', 'state', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
+    df_update.drop(columns=['zip', 'state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
                inplace=True)  
     print(df_update.info()) 
     print(df_update.shape)
