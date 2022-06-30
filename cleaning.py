@@ -28,7 +28,7 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
     So, may need additional cleaning for the dataframe's native columns.
     
     Arguments:
-    covid_dates -- a dataframe with a column that holds the names of a college, 'state' with the two letter state abbreviation, 
+    covid_dates -- a dataframe with a column that holds the names of a college
                     and 'zip' with a valid zip code.
     date_cols -- list of column names that represent dates each college acted to impose a guideline.
     census_vars -- dictionary with codes and names of corresponding census variables from the US Census Bureau's ASC5 survey.
@@ -48,10 +48,11 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
     def get_census(covid_dates_cleaned, census_vars):
         census_api_key = os.getenv('api_key_census')
         c = Census(census_api_key, year=2020)
-        state_fips = us.states.mapping('abbr', 'fips')
-        covid_dates_cleaned['state_fips'] = covid_dates_cleaned['state'].apply(lambda x: state_fips[x])  
+        state_fips = us.states.mapping('abbr', 'fips')        
         county_zips = pd.read_csv('zip-county-fips/ZIP-COUNTY-FIPS_2017-06.csv')
-        covid_dates_cleaned = covid_dates_cleaned.merge(county_zips[["ZIP", "STATE", "STCOUNTYFP"]], left_on=["state", "zip"], right_on=["STATE", "ZIP"]).drop(columns=["ZIP", "STATE"])
+        covid_dates_cleaned = covid_dates_cleaned.merge(county_zips[["ZIP", "STATE", "STCOUNTYFP"]], left_on=["zip"], right_on=["ZIP"]).drop(columns=["ZIP"])
+        covid_dates_cleaned.rename(columns={'STATE': 'state'}, inplace=True)
+        covid_dates_cleaned['state_fips'] = covid_dates_cleaned['state'].apply(lambda x: state_fips[x])  
         covid_dates_cleaned["county_fips"] = covid_dates_cleaned["STCOUNTYFP"]%1000
         covid_dates_cleaned['county_fips_str'] = covid_dates_cleaned['county_fips'].astype(str).str.zfill(3)
         api_return_cols = list(census_vars.values()) + ['state', 'county']
@@ -187,6 +188,13 @@ if __name__ == '__main__':
     # covid_dates = cleaning(covid_dates)    
     # covid_dates.to_csv('covid_dates_cleaned_script_school.csv', index=False) 
 
-    covid_dates = pd.read_csv('vacc_mandates_top.csv') # after basic cleaning applied to my excel file    
-    covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='3/25/2021', college_name='College')    
-    covid_dates.to_csv('vacc_mandates_cleaned_school.csv', index=False)
+    # covid_dates = pd.read_csv('vacc_mandates_top.csv') # after basic cleaning applied to my excel file    
+    # covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='3/25/2021', college_name='College')    
+    # covid_dates.to_csv('vacc_mandates_cleaned_school.csv', index=False)
+
+    df_update = pd.DataFrame({'zip': [60091], 'ranking': [3], 'announce_date': [10], '2020.student.size': [10000], 'Type': ['Private']})
+    df_update = cleaning(df_update, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True) 
+    df_update.drop(columns=['zip', 'state', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
+               inplace=True)  
+    print(df_update.info()) 
+    print(df_update.shape)

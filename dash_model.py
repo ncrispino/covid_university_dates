@@ -23,9 +23,9 @@ model = joblib.load('booster_log_model_jlib')
 # Create histogram with dash for fitted model
 def create_histogram(df):
     histogram = go.Histogram(
-        x=df['prediction'],
+        x=df['booster'],
         opacity=0.75,
-        name='Prediction',
+        name='Booster',
         marker=dict(
             color='#FF0000',
             line=dict(
@@ -36,8 +36,6 @@ def create_histogram(df):
     )
     return histogram
 
-hist_importances = create_histogram(df)
-
 # Create dash app
 app = dash.Dash()
 
@@ -45,6 +43,7 @@ app = dash.Dash()
     # Distribution of values
     # Histogram of fitted model
     # Box to enter zip code
+    # Checkbox for type of school
     # Slider to update ranking
     # Slider to update announce_date
     # Slider to update student body size
@@ -55,23 +54,21 @@ app.layout = html.Div(style={'textAlign': 'center', 'width': '100%', 'font-famil
 children=[
     html.H1('Dashboard for Modeling'),
     html.H3('Distribution of Values'),
-    dcc.Graph(
-        id='histogram',
-        figure={
-            'data': [hist_importances],
-            'layout': {
-                'title': 'Distribution of Values',
-                'xaxis': {'title': 'Prediction'},
-                'yaxis': {'title': 'Frequency'}
-            }
-        }
-    ),
+    dcc.Graph(id='figure'),
     html.H3('Enter Zip Code'),
     dcc.Input(
         id='zip_code',
         placeholder='Enter Zip Code',
         type='text',
         value=''
+    ),
+    html.H3('Type of School'),
+    dcc.Checklist(
+        id='type_of_school',
+        options=[
+            {'label': 'Public', 'value': 'Public'},
+            {'label': 'Private', 'value': 'Private'},
+        ]
     ),
     html.H3('Update Ranking'),
     dcc.Slider(
@@ -137,18 +134,20 @@ children=[
     # )
 ])
 
-@app.callback(Output('map', 'figure'), [Input('zip_code', 'value'), Input('ranking', 'value'), 
+@app.callback(Output('figure'), [Input('zip_code', 'value'), Input('type', 'value'), Input('ranking', 'value'), 
                                         Input('announce_date', 'value'), Input('student_body_size', 'value')])
 
 def update_prediction(zip_code, ranking, announce_date, student_body_size):
     # create dataframe with zip code, ranking, announce date, and student body size
-    df_update = pd.DataFrame({'zip': zip_code, 'ranking': ranking, 'announce_date': announce_date, 'size': student_body_size})
+    college_data = pd.DataFrame({'zip': [zip_code], 'ranking': [ranking], 'announce_date': [announce_date], '2020.student.size': [student_body_size], 'Type': [type]})
     # call cleaning from cleaning.py
-    df_update = cleaning(df_update, last_tracking_date='3/25/2021', ignore_college=True)
+    college_data = cleaning(college_data, last_tracking_date='3/25/2021', ignore_college=True)
+    college_data.drop(columns=['zip', 'state', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
+               inplace=True)
     # predict using fitted model
-    df_update['prediction'] = model.predict(df_update)
+    college_data['booster'] = model.predict(college_data)
     # create histogram with dash for fitted model
-    hist_update = create_histogram(df_update)
+    hist_update = create_histogram(college_data)
     # create map with dash for fitted model
     # map_update = go.Scattermapbox(
     #     lat=df_update['lat'],
