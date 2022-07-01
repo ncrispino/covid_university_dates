@@ -51,14 +51,16 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
         census_api_key = os.getenv('api_key_census')
         c = Census(census_api_key, year=2020)
         state_fips = us.states.mapping('abbr', 'fips')
-        if not county_fips:       
-            print(county_fips)             
+        if not county_fips:                               
             county_zips = pd.read_csv('zip-county-fips/ZIP-COUNTY-FIPS_2017-06.csv')
-            covid_dates_cleaned = covid_dates_cleaned.merge(county_zips[["ZIP", "STATE", "STCOUNTYFP"]], left_on=["zip"], right_on=["ZIP"]).drop(columns=["ZIP"])
+            if 'state' in covid_dates.columns:
+                covid_dates_cleaned = covid_dates_cleaned.merge(county_zips[["ZIP", "STATE", "STCOUNTYFP"]], left_on=["zip"], right_on=["ZIP"]).drop(columns=["STATE", "ZIP"])
+            else:
+                covid_dates_cleaned = covid_dates_cleaned.merge(county_zips[["ZIP", "STATE", "STCOUNTYFP"]], left_on=["zip"], right_on=["ZIP"]).drop(columns=["ZIP"])
         else:
             covid_dates_cleaned = covid_dates
-        covid_dates_cleaned.rename(columns={'STATE': 'state'}, inplace=True)
-        covid_dates_cleaned['state_fips'] = covid_dates_cleaned['state'].apply(lambda x: state_fips[x])          
+        covid_dates_cleaned.rename(columns={'STATE': 'state'}, inplace=True)                
+        covid_dates_cleaned['state_fips'] = covid_dates_cleaned['state'].map(state_fips)                    
         covid_dates_cleaned["county_fips"] = covid_dates_cleaned["STCOUNTYFP"]%1000
         covid_dates_cleaned['county_fips_str'] = covid_dates_cleaned['county_fips'].astype(str).str.zfill(3)
         api_return_cols = list(census_vars.values()) + ['state', 'county']
@@ -195,30 +197,25 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
     #     return covid_dates
 
 if __name__ == '__main__':
+    # use to test the dataset I created
     # covid_dates = pd.read_csv('covid_dates_nice.csv') # after basic cleaning applied to my excel file    
     # covid_dates = cleaning(covid_dates)    
     # covid_dates.to_csv('covid_dates_cleaned_script_school.csv', index=False) 
 
-    # covid_dates = pd.read_csv('vacc_mandates_top.csv') # after basic cleaning applied to my excel file    
+    # use for normal vaccination status inquiries
+    # covid_dates = pd.read_csv('vacc_mandates_top.csv') 
     # covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='3/25/2021', college_name='College')    
     # covid_dates.to_csv('vacc_mandates_cleaned_school.csv', index=False)
 
-    # df_update = pd.DataFrame({'zip': [60092], 'ranking': [3], 'announce_date': [10], '2020.student.size': [10000], 'Type': ['Private']})    
-    # df_update = cleaning(df_update, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True) 
-    # if ~(df_update['zip'].isna().any()):
-    #     df_update.drop(columns=['zip', 'state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
-    #             inplace=True)  
-    #     print(df_update.info()) 
-    #     print(df_update.shape)
-    # else:
-    #     print('zip not found')
-    # df_update = pd.DataFrame({'STCOUNTYFP': [17097], 'STATE': ['IL'], 'ranking': [3], 'announce_date': [10], '2020.student.size': [10000], 'Type': ['Private']})    
-    # df_update = cleaning(df_update, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True, county_fips=True)
-    # print(df_update)
+    # use for boosters -- changed last tracking date to the earliest booster day I found in my dataset because the other set only tracks vaccine mandates
+    # covid_dates = pd.read_csv('vacc_mandates_top.csv')   
+    # covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='12/06/2021', college_name='College')    
+    # covid_dates.to_csv('booster_mandates_cleaned_school.csv', index=False)    
 
-    # Get county-level values for all counties
-    county_zips = pd.read_csv('zip-county-fips/ZIP-COUNTY-FIPS_2017-06.csv')
-    college_data = county_zips[['STCOUNTYFP', 'STATE']].drop_duplicates().head(20)
-    college_data = cleaning(college_data, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True, county_fips=True)
-    print(college_data)
-    college_data.to_csv('college_data_county.csv', index=False)
+    # Get county-level values for all counties--can't do all at once because of API limits
+    # county_zips = pd.read_csv('zip-county-fips/ZIP-COUNTY-FIPS_2017-06.csv')
+    n = 100 # number of times to call API
+    # college_data = county_zips[['STCOUNTYFP', 'STATE']].drop_duplicates().head(n)
+    # college_data = cleaning(college_data, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True, county_fips=True)
+    # print(college_data)
+    # college_data.to_csv('college_data_county.csv', index=False)
