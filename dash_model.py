@@ -12,8 +12,6 @@ from dash import dcc
 from dash import html
 import dash_daq as daq
 from dash.dependencies import Input, Output
-# import cleaning method from cleaning.py
-from cleaning import cleaning
 import plotly.figure_factory as ff
 import plotly.express as px
 
@@ -29,9 +27,8 @@ app = dash.Dash()
 
 # Page structure will be:
     # Map of US by county shaded based on output from fitted model
-    # Distribution of values
     # Bar graph of output from fitted model
-    # Box to enter zip code
+    # Total number of booster mandates
     # Slider for type of school, with two options
     # Slider to update ranking with 5 bins of range bins=[0, 20, 100, 200, 298, 400]
     # Slider to update announce_date
@@ -121,7 +118,8 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     bar_fig.add_trace(go.Bar(x=['0', '1'], y=[college_data_clean['booster'].value_counts()[0], college_data_clean['booster'].value_counts()[1]]))  
 
     # create map of US by county shaded based on output from fitted model
-    # first load geojson file for US counties--below copied from https://plotly.com/python/mapbox-county-choropleth/
+    # first load geojson file for US counties
+    # All of the map stuff is copied from https://plotly.com/python/mapbox-county-choropleth/
     from urllib.request import urlopen
     import json
     with urlopen('https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json') as response:
@@ -129,13 +127,11 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     college_data_discrete = college_data_clean.copy()   
     college_data_discrete['booster'] = college_data_discrete['booster'] .astype('str') # so that a colormap doesn't show up--only 0 and 1
     map_fig = px.choropleth_mapbox(
-        college_data_discrete, geojson=counties, locations='STCOUNTYFP', color='booster',
-        # color_continuous_scale='Viridis',
+        college_data_discrete, geojson=counties, locations='STCOUNTYFP', color='booster',        
         color_discrete_map={
             '0': '#F4EC15',
             '1': '#D95B43'
-        },
-        # range_color=(0, 1),
+        },        
         mapbox_style="carto-positron",
         zoom=3, center={"lat": 37.0902, "lon": -95.7129},
         opacity=0.5,
@@ -147,4 +143,5 @@ def update_prediction(type, ranking, announce_date, student_body_size):
 if __name__ == '__main__':
     app.run_server(debug=True)    
 
-# Note: need to get list of counties and their data so that I don't have to call the api everytime.
+# Note: need to get list of counties and their data so that I don't have to call the api everytime. This can be accomplished by running cleaning.py; it's in the main method.
+# Also, need to fix the order of the columns in the csv file.
