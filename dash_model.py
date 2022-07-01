@@ -3,6 +3,7 @@
 # Thanks to the author Pierre-Louis Bescond. Check out the article for more information.
 
 from distutils.log import debug
+from matplotlib.pyplot import figure
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -13,60 +14,65 @@ import dash_daq as daq
 from dash.dependencies import Input, Output
 # import cleaning method from cleaning.py
 from cleaning import cleaning
+import plotly.figure_factory as ff
 
 
 # import fitted model
 # from sklearn.externals import joblib
 import joblib
-model = joblib.load('booster_log_model_jlib')
+model = joblib.load('booster_dummy_model_jlib')
+# model = joblib.load('booster_log_model_jlib')
 # model = joblib.load('booster_model.pkl')
 
 # Create dash app
 app = dash.Dash()
 
 # Page structure will be:
+    # Map of US by county shaded based on output from fitted model
     # Distribution of values
-    # Histogram of fitted model
+    # Bar graph of output from fitted model
     # Box to enter zip code
-    # Checkbox for type of school
-    # Slider to update ranking
+    # Slider for type of school, with two options
+    # Slider to update ranking with 5 bins of range bins=[0, 20, 100, 200, 298, 400]
     # Slider to update announce_date
     # Slider to update student body size
-    # Map of results from fitted model on all counties with the given parameters
 
 # apply basic HTML layout
 app.layout = html.Div(style={'textAlign': 'center', 'width': '100%', 'font-family': 'Verdana'}, 
 children=[
     html.H1('Dashboard for Modeling'),
-    # html.H3('Distribution of Values'),
-    # dcc.Graph(id='distribution-of-values'),
+    # show map from callback
+    # html.Div(id='map-container', children=html.Div(id='map')),
+    html.H3('Distribution of Values'),
+    dcc.Graph(id='distribution-of-values'),
     # show the number of boosters from callback
     html.H3('Number of Boosters'),
     html.H4(id='number-of-boosters'),    
-    html.H3('Enter Zip Code'),
-    dcc.Input(
-        id='zip_code',
-        placeholder='Enter Zip Code',        
-        type='number',
-        value=60091,
-    ),
     html.H3('Type of School'),
-    dcc.Checklist(
+    dcc.RadioItems(
         id='type',
         options=[
             {'label': 'Public', 'value': 'Public'},
             {'label': 'Private', 'value': 'Private'},
         ],
-        value=['Public'],        
-    ),
+        value='Public',
+        labelStyle={'display': 'inline-block'},
+    ),            
     html.H3('Update Ranking'),
     dcc.Slider(
         id='ranking',
         min=0,
-        max=10,
+        max=400,
         step=1,
-        value=5,
-        marks={i: str(i) for i in range(11)}
+        value=100,
+        marks={
+            0: '0',
+            20: '20',
+            100: '100',
+            200: '200',
+            298: '298',
+            400: '400',
+        },
     ),
     html.H3('Update Announce Date'),
     dcc.Slider(
@@ -75,58 +81,74 @@ children=[
         max=365,
         step=1,
         value=180,
-        marks={i: str(i) for i in range(366)}
+        marks={i: str(i) for i in range(0, 366, 10)}
     ),
     html.H3('Update Student Body Size'),
     dcc.Slider(
         id='student_body_size',
         min=0,
-        max=100,
-        step=1,
-        value=50,
-        marks={i: str(i) for i in range(101)}
+        max=70000,
+        step=100,
+        value=10000,
+        marks={i: str(i) for i in range(0, 70001, 10000)}
     )    
 ])
 
 # Create callback for histogram using all the values provided and the update_prediction method below
-@app.callback(Output('number-of-boosters', 'children'), # Output('distribution-of-values', 'figure'), 
-                [Input('zip_code', 'value'), Input('type', 'value'), Input('ranking', 'value'), Input('announce_date', 'value'), Input('student_body_size', 'value')])
+@app.callback([Output('number-of-boosters', 'children'), Output('distribution-of-values', 'figure')], #, Output('map', 'figure')], 
+                [Input('type', 'value'), Input('ranking', 'value'), Input('announce_date', 'value'), Input('student_body_size', 'value')])
 
 # Note that Dash calls this method with default values when it starts.
-def update_prediction(zip_code, type, ranking, announce_date, student_body_size):    
+def update_prediction(type, ranking, announce_date, student_body_size):    
     """
-    Updates histogram based on user-input. Note that in Sci-kit learn, the order of the columns matters. So, I need to transform my input.
+    Updates bar graph based on user-input. Note that in Sci-kit learn, the order of the columns matters. So, I need to transform my input.
     """
-    # create dataframe with zip code, ranking, announce date, and student body size
-    college_data = pd.DataFrame({'zip': [zip_code], 'ranking': [ranking], 'announce_date': [announce_date], 'Type': type}) # type is already a list      
+    # get all county fips from file NEED TO FIX ORDER IN EXECUTION
+    college_data = pd.read_csv('X_train_booster.csv')
+    college_data[['ranking', 'announce_date', 'Type', '2020.student.size']] = [ranking, announce_date, type, student_body_size]   
     college_data['ranking'] = pd.cut(college_data['ranking'], bins=[0, 20, 100, 200, 298, 400], labels=['a', 'b', 'c', 'd', 'e'], right=False)  # cut the ranking into 5 bins
-    college_data = cleaning(college_data, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True)
-    if college_data['zip'].isna().any(): # cleaning.py returns a dataframe with NaN if the zip code is not found.        
-        return -1
-    college_data.drop(columns=['zip', 'state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
-            inplace=True)    
-    college_data['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here    
-    college_data['booster'] = model.predict(college_data)    
-    # create histogram for college_data['booster'] without using a separate method
-    # histogram = go.Histogram(
-    #     x=college_data['booster'],
-    #     opacity=0.75,
-    #     name='Booster',
-    #     marker=dict(
-    #         color='#FF0000',
-    #         line=dict(
-    #             color='#FF0000',
-    #             width=1
-    #         )
-    #     )
-    # )    
-    return college_data['booster'].sum()
+    college_data_clean = college_data #.drop(columns=['state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'])                
+    # college_data_clean.drop(columns=['zip', 'state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
+    #         inplace=True)    
+    # college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here  
+    college_data_clean['booster'] = model.predict(college_data_clean)    
+    print(college_data_clean)
 
-    # # create histogram with dash only for college_data
-    # histogram = create_histogram(college_data)
-    # # create figure with histogram and college_data
-    # figure = go.Figure(data=[histogram])
-    # return figure #college_data['booster'], hist_update #, map_update
+    bar_fig = go.Figure()
+    # create bar graph with bars for 0 and 1 with space between them
+    bar_fig.add_trace(go.Bar(x=['0', '1'], y=[college_data_clean['booster'].value_counts()[0], college_data_clean['booster'].value_counts()[1]]))  
+
+    # create map of US by county shaded based on output from fitted model
+    # map_fig = go.Figure()
+    # map_fig.add_trace(go.Choropleth(
+    #     locations=college_data_clean['county_fips'],
+    #     z=college_data_clean['booster'],
+    #     locationmode='USA-states',
+    #     colorscale='Portland',
+    #     colorbar_title="Number of Boosters"
+    # ))
+    # map_fig.update_layout(
+    #     title_text='Map of US by County Shaded Based on Output from Fitted Model',
+    #     geo_scope='usa',
+    #     width=1000,
+    #     height=600
+    # )
+    # map_fig.update_geos(fitbounds="locations")
+    # map_fig.update_layout(mapbox_zoom=3)
+    # map_fig.update_layout(mapbox_center={"lat": 37.0902, "lon": -95.7129})
+    # map_fig.update_layout(mapbox_style="open-street-map")
+    # map_fig.update_layout(mapbox_accesstoken=mapbox_access_token)
+    # map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+    # map_fig.update_layout(title_text='Map of US by County Shaded Based on Output from Fitted Model')
+    # map_fig.update_layout(title_x=0.5)
+    # map_fig.update_layout(title_y=0.9)
+    # map_fig.update_layout(title_xanchor='center', title_yanchor='top')
+    # map_fig.update_layout(title_font=dict(
+    #     family="Courier New, monospace",
+    #     size=18,
+    #     color="#7f7f7f"
+    # ))
+    return college_data_clean['booster'].sum(), bar_fig #, map_fig
 
 if __name__ == '__main__':
     app.run_server(debug=True)    
