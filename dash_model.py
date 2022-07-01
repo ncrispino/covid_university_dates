@@ -42,7 +42,7 @@ app.layout = html.Div(style={'textAlign': 'center', 'width': '100%', 'font-famil
 children=[
     html.H1('Dashboard for Modeling'),
     # show map from callback
-    dcc.Graph(id='map', style={'width': '100%', 'height': '100%'}),
+    dcc.Graph(id='map'), #, style={'width': '100%', 'height': '100%'}),
     html.H3('Distribution of Values'),
     dcc.Graph(id='distribution-of-values'),
     # show the number of boosters from callback
@@ -113,7 +113,7 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     college_data_clean.drop(columns=['state', 'state_new', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
             inplace=True)    
     # college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here  
-    college_data_clean['booster'] = model.predict(college_data_clean)    
+    college_data_clean['booster'] = model.predict(college_data_clean)
     print(college_data_clean)
 
     bar_fig = go.Figure()
@@ -125,65 +125,23 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     from urllib.request import urlopen
     import json
     with urlopen('https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json') as response:
-        counties = json.load(response)    
+        counties = json.load(response) 
+    college_data_discrete = college_data_clean.copy()   
+    college_data_discrete['booster'] = college_data_discrete['booster'] .astype('str') # so that a colormap doesn't show up--only 0 and 1
     map_fig = px.choropleth_mapbox(
-        college_data_clean, geojson=counties, locations='STCOUNTYFP', color='booster',
-        color_continuous_scale='Viridis',
-        range_color=(0, 1),
+        college_data_discrete, geojson=counties, locations='STCOUNTYFP', color='booster',
+        # color_continuous_scale='Viridis',
+        color_discrete_map={
+            '0': '#F4EC15',
+            '1': '#D95B43'
+        },
+        # range_color=(0, 1),
         mapbox_style="carto-positron",
         zoom=3, center={"lat": 37.0902, "lon": -95.7129},
         opacity=0.5,
         labels={'STCOUNTYFP': 'County'}
     )
     map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-    # map_fig.update_layout(mapbox_style="carto-positron")
-    # map_fig.update_layout(mapbox_zoom=3)
-    # map_fig.update_layout(mapbox_center={"lat": 37.0902, "lon": -95.7129})
-    # map_fig.update_layout(mapbox_bearing=0)
-    # map_fig.update_layout(mapbox_pitch=0)
-    # map_fig.update_layout(mapbox_layers=[
-    #     dict(
-    #         source=["composite"],
-    #         sourcelayer="counties",
-    #         opacity=0.1,
-    #         filter=["==", "county_fips", ""]
-    #     ),
-    #     dict(
-    #         source=["composite"],
-    #         sourcelayer="counties",
-    #         opacity=0.1,
-    #         filter=["!=", "county_fips", ""]
-    #     )
-    # ])    
-    # map_fig.add_trace(go.Choropleth(
-    #     locations=college_data_clean['STCOUNTYFP'],
-    #     geojson=counties,
-    #     z=college_data_clean['booster'],
-    #     locationmode='USA-states',
-    #     colorscale='Portland',
-    #     colorbar_title="Number of Boosters"
-    # ))
-    # map_fig.update_layout(
-    #     title_text='Map of US by County Shaded Based on Output from Fitted Model',
-    #     geo_scope='usa',
-    #     width=1000,
-    #     height=600
-    # )
-    # map_fig.update_geos(fitbounds="locations")
-    # map_fig.update_layout(mapbox_zoom=3)
-    # map_fig.update_layout(mapbox_center={"lat": 37.0902, "lon": -95.7129})
-    # map_fig.update_layout(mapbox_style="open-street-map")
-    # map_fig.update_layout(mapbox_accesstoken=mapbox_access_token)
-    map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-    # map_fig.update_layout(title_text='Map of US by County Shaded Based on Output from Fitted Model')
-    # map_fig.update_layout(title_x=0.5)
-    # map_fig.update_layout(title_y=0.9)
-    # map_fig.update_layout(title_xanchor='center', title_yanchor='top')
-    # map_fig.update_layout(title_font=dict(
-    #     family="Courier New, monospace",
-    #     size=18,
-    #     color="#7f7f7f"
-    # ))
     return college_data_clean['booster'].sum(), bar_fig, map_fig
 
 if __name__ == '__main__':
