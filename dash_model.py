@@ -101,8 +101,10 @@ def update_prediction(zip_code, type, ranking, announce_date, student_body_size)
     college_data = pd.DataFrame({'zip': [zip_code], 'ranking': [ranking], 'announce_date': [announce_date], 'Type': type}) # type is already a list      
     college_data['ranking'] = pd.cut(college_data['ranking'], bins=[0, 20, 100, 200, 298, 400], labels=['a', 'b', 'c', 'd', 'e'], right=False)  # cut the ranking into 5 bins
     college_data = cleaning(college_data, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True)
+    if college_data['zip'].isna().any(): # cleaning.py returns a dataframe with NaN if the zip code is not found.        
+        return -1
     college_data.drop(columns=['zip', 'state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
-               inplace=True)    
+            inplace=True)    
     college_data['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here    
     college_data['booster'] = model.predict(college_data)    
     # create histogram for college_data['booster'] without using a separate method

@@ -22,7 +22,7 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
              ignore_college=False):
     """  
     Given dataframe with zip code (and no state column) will find census data for given variables and corresponding county-level covid data, 
-    as well as political leaning of both the county and state. 
+    as well as political leaning of both the county and state. If zip code not found, will set it to NaN.
     Returns the original dataframe with added columns. 
     Note that anything dataframe passed to this function may not be cleaned (i.e., have columns that make no sense or burdensome column names).
     So, may need additional cleaning for the dataframe's native columns.
@@ -45,7 +45,7 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
         date_diff = covid_dates_only_d - first_dates
         covid_dates[date_cols] = date_diff.apply(lambda x: x.dt.days)
 
-    def get_census(covid_dates_cleaned, census_vars):
+    def get_census(covid_dates_cleaned, census_vars):        
         census_api_key = os.getenv('api_key_census')
         c = Census(census_api_key, year=2020)
         state_fips = us.states.mapping('abbr', 'fips')        
@@ -66,16 +66,13 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
                 no_api_return[['state', 'county']] = x.values
                 return no_api_return
         census_var_names = list(census_vars.keys())
-        census_vars_counties = covid_dates_cleaned[['state_fips', 'county_fips_str']].drop_duplicates().apply(separate_county_fips, args=(census_var_names), axis=1)      
+        census_vars_counties = covid_dates_cleaned[['state_fips', 'county_fips_str']].drop_duplicates().apply(separate_county_fips, args=(census_var_names), axis=1)              
         covid_dates_cleaned = (covid_dates_cleaned.merge(census_vars_counties, 
                                                 left_on=['state_fips', 'county_fips_str'], 
                                                 right_on=['state', 'county'],
                                                 suffixes=('', '_new'))
                                 .drop(columns=['county']))
-        return covid_dates_cleaned
-        # except:
-        #     print('Invalid zip code.')
-        #     return covid_dates_cleaned
+        return covid_dates_cleaned        
 
     def get_covid_county(covid_dates_cleaned, last_tracking_date):
         covid_county = pd.read_csv('counties.timeseries.csv')
@@ -179,13 +176,18 @@ def cleaning(covid_dates, date_cols=['Spring2020', 'FirstVaccine', 'Booster', 'S
         covid_dates_all = covid_dates_all_zips.loc[covid_dates_all_zips.groupby(college_name)['name_similarity'].idxmax().values] # keep only college in zip code with highest similarty
         return covid_dates_all
 
-    covid_dates = get_census(covid_dates, census_vars)    
-    covid_dates = get_covid_county(covid_dates, last_tracking_date)    
-    covid_dates = get_political_lean(covid_dates, election_year)    
-    covid_dates = get_region(covid_dates)
-    if not ignore_college:
-        covid_dates = get_school_data(covid_dates, call_scoreboard_api, scorecard_vars)
-    return covid_dates
+    try:
+        covid_dates = get_census(covid_dates, census_vars)    
+        covid_dates = get_covid_county(covid_dates, last_tracking_date)    
+        covid_dates = get_political_lean(covid_dates, election_year)    
+        covid_dates = get_region(covid_dates)
+        if not ignore_college:
+            covid_dates = get_school_data(covid_dates, call_scoreboard_api, scorecard_vars)
+        return covid_dates
+    except:
+        print('All zips not found.')
+        covid_dates['zip'] = np.nan
+        return covid_dates
 
 if __name__ == '__main__':
     # covid_dates = pd.read_csv('covid_dates_nice.csv') # after basic cleaning applied to my excel file    
@@ -196,9 +198,12 @@ if __name__ == '__main__':
     # covid_dates = cleaning(covid_dates, date_cols=['announce_date'], last_tracking_date='3/25/2021', college_name='College')    
     # covid_dates.to_csv('vacc_mandates_cleaned_school.csv', index=False)
 
-    df_update = pd.DataFrame({'zip': [60091], 'ranking': [3], 'announce_date': [10], '2020.student.size': [10000], 'Type': ['Private']})    
+    df_update = pd.DataFrame({'zip': [60092], 'ranking': [3], 'announce_date': [10], '2020.student.size': [10000], 'Type': ['Private']})    
     df_update = cleaning(df_update, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True) 
-    df_update.drop(columns=['zip', 'state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
-               inplace=True)  
-    print(df_update.info()) 
-    print(df_update.shape)
+    if ~(df_update['zip'].isna().any()):
+        df_update.drop(columns=['zip', 'state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
+                inplace=True)  
+        print(df_update.info()) 
+        print(df_update.shape)
+    else:
+        print('zip not found')
