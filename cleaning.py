@@ -218,7 +218,7 @@ if __name__ == '__main__':
 
     # Get county-level values for all counties
     county_zips = pd.read_csv('zip-county-fips/ZIP-COUNTY-FIPS_2017-06.csv')
-    college_data = county_zips[['STCOUNTYFP', 'STATE']].drop_duplicates().head()
+    college_data = county_zips[['STCOUNTYFP', 'STATE']].drop_duplicates().head(20)
     college_data = cleaning(college_data, date_cols=None, last_tracking_date='3/25/2021', ignore_college=True, county_fips=True)
     print(college_data)
     college_data.to_csv('college_data_county.csv', index=False)

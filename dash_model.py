@@ -15,7 +15,7 @@ from dash.dependencies import Input, Output
 # import cleaning method from cleaning.py
 from cleaning import cleaning
 import plotly.figure_factory as ff
-
+import plotly.express as px
 
 # import fitted model
 # from sklearn.externals import joblib
@@ -42,7 +42,7 @@ app.layout = html.Div(style={'textAlign': 'center', 'width': '100%', 'font-famil
 children=[
     html.H1('Dashboard for Modeling'),
     # show map from callback
-    # html.Div(id='map-container', children=html.Div(id='map')),
+    dcc.Graph(id='map', style={'width': '100%', 'height': '100%'}),
     html.H3('Distribution of Values'),
     dcc.Graph(id='distribution-of-values'),
     # show the number of boosters from callback
@@ -95,7 +95,7 @@ children=[
 ])
 
 # Create callback for histogram using all the values provided and the update_prediction method below
-@app.callback([Output('number-of-boosters', 'children'), Output('distribution-of-values', 'figure')], #, Output('map', 'figure')], 
+@app.callback([Output('number-of-boosters', 'children'), Output('distribution-of-values', 'figure'), Output('map', 'figure')], 
                 [Input('type', 'value'), Input('ranking', 'value'), Input('announce_date', 'value'), Input('student_body_size', 'value')])
 
 # Note that Dash calls this method with default values when it starts.
@@ -104,12 +104,14 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     Updates bar graph based on user-input. Note that in Sci-kit learn, the order of the columns matters. So, I need to transform my input.
     """
     # get all county fips from file NEED TO FIX ORDER IN EXECUTION
-    college_data = pd.read_csv('X_train_booster.csv')
+    # college_data = pd.read_csv('X_train_booster.csv')
+    college_data = pd.read_csv('college_data_county.csv')
     college_data[['ranking', 'announce_date', 'Type', '2020.student.size']] = [ranking, announce_date, type, student_body_size]   
     college_data['ranking'] = pd.cut(college_data['ranking'], bins=[0, 20, 100, 200, 298, 400], labels=['a', 'b', 'c', 'd', 'e'], right=False)  # cut the ranking into 5 bins
-    college_data_clean = college_data #.drop(columns=['state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'])                
-    # college_data_clean.drop(columns=['zip', 'state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
-    #         inplace=True)    
+    college_data_clean = college_data #.drop(columns=['state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'])  
+    college_data_clean['STCOUNTYFP'] = college_data_clean['STCOUNTYFP'].astype(str).str.zfill(5) # so map can read
+    college_data_clean.drop(columns=['state', 'state_new', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
+            inplace=True)    
     # college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here  
     college_data_clean['booster'] = model.predict(college_data_clean)    
     print(college_data_clean)
@@ -119,9 +121,43 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     bar_fig.add_trace(go.Bar(x=['0', '1'], y=[college_data_clean['booster'].value_counts()[0], college_data_clean['booster'].value_counts()[1]]))  
 
     # create map of US by county shaded based on output from fitted model
-    # map_fig = go.Figure()
+    # first load geojson file for US counties--below copied from https://plotly.com/python/mapbox-county-choropleth/
+    from urllib.request import urlopen
+    import json
+    with urlopen('https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json') as response:
+        counties = json.load(response)    
+    map_fig = px.choropleth_mapbox(
+        college_data_clean, geojson=counties, locations='STCOUNTYFP', color='booster',
+        color_continuous_scale='Viridis',
+        range_color=(0, 1),
+        mapbox_style="carto-positron",
+        zoom=3, center={"lat": 37.0902, "lon": -95.7129},
+        opacity=0.5,
+        labels={'STCOUNTYFP': 'County'}
+    )
+    map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+    # map_fig.update_layout(mapbox_style="carto-positron")
+    # map_fig.update_layout(mapbox_zoom=3)
+    # map_fig.update_layout(mapbox_center={"lat": 37.0902, "lon": -95.7129})
+    # map_fig.update_layout(mapbox_bearing=0)
+    # map_fig.update_layout(mapbox_pitch=0)
+    # map_fig.update_layout(mapbox_layers=[
+    #     dict(
+    #         source=["composite"],
+    #         sourcelayer="counties",
+    #         opacity=0.1,
+    #         filter=["==", "county_fips", ""]
+    #     ),
+    #     dict(
+    #         source=["composite"],
+    #         sourcelayer="counties",
+    #         opacity=0.1,
+    #         filter=["!=", "county_fips", ""]
+    #     )
+    # ])    
     # map_fig.add_trace(go.Choropleth(
-    #     locations=college_data_clean['county_fips'],
+    #     locations=college_data_clean['STCOUNTYFP'],
+    #     geojson=counties,
     #     z=college_data_clean['booster'],
     #     locationmode='USA-states',
     #     colorscale='Portland',
@@ -138,7 +174,7 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     # map_fig.update_layout(mapbox_center={"lat": 37.0902, "lon": -95.7129})
     # map_fig.update_layout(mapbox_style="open-street-map")
     # map_fig.update_layout(mapbox_accesstoken=mapbox_access_token)
-    # map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+    map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
     # map_fig.update_layout(title_text='Map of US by County Shaded Based on Output from Fitted Model')
     # map_fig.update_layout(title_x=0.5)
     # map_fig.update_layout(title_y=0.9)
@@ -148,7 +184,7 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     #     size=18,
     #     color="#7f7f7f"
     # ))
-    return college_data_clean['booster'].sum(), bar_fig #, map_fig
+    return college_data_clean['booster'].sum(), bar_fig, map_fig
 
 if __name__ == '__main__':
     app.run_server(debug=True)    
