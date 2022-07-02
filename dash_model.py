@@ -18,9 +18,9 @@ import plotly.express as px
 # import fitted model
 # from sklearn.externals import joblib
 import joblib
-model = joblib.load('booster_dummy_model_jlib')
+# model = joblib.load('booster_dummy_model_jlib')
 # model = joblib.load('booster_log_model_jlib')
-# model = joblib.load('booster_model.pkl')
+model = joblib.load('booster_model_jlib')
 
 # Create dash app
 app = dash.Dash()
@@ -103,15 +103,18 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     # get all county fips from file NEED TO FIX ORDER IN EXECUTION
     # college_data = pd.read_csv('X_train_booster.csv')
     college_data = pd.read_csv('college_data_county.csv')
-    college_data[['ranking', 'announce_date', 'Type', '2020.student.size']] = [ranking, announce_date, type, student_body_size]   
+    column_names = college_data.columns
+    college_data[['ranking', 'announce_date', 'Type']] = [ranking, announce_date, type]
+    college_data = college_data[['ranking', 'announce_date', 'Type', *column_names]]
     college_data['ranking'] = pd.cut(college_data['ranking'], bins=[0, 20, 100, 200, 298, 400], labels=['a', 'b', 'c', 'd', 'e'], right=False)  # cut the ranking into 5 bins
     college_data_clean = college_data #.drop(columns=['state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'])  
     college_data_clean['STCOUNTYFP'] = college_data_clean['STCOUNTYFP'].astype(str).str.zfill(5) # so map can read
-    college_data_clean.drop(columns=['state', 'state_new', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
+    college_data_clean.drop(columns=['state', 'state_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
             inplace=True)    
-    # college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here  
-    college_data_clean['booster'] = model.predict(college_data_clean)
-    print(college_data_clean)
+    college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here  
+    print(college_data_clean.drop(columns='STCOUNTYFP').dropna()) # drop rows if there are NaN values in any columns
+    college_data_clean['booster'] = model.predict(college_data_clean.drop(columns='STCOUNTYFP').dropna())
+    # print(college_data_clean.drop(columns='STCOUNTYFP').dropna())
 
     bar_fig = go.Figure()
     # create bar graph with bars for 0 and 1 with space between them
