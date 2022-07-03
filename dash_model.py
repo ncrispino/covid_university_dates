@@ -50,16 +50,23 @@ children=[
     ),
     dbc.Row(
         dbc.Col(
-            # show map from callback
-            dcc.Graph(id='map'),
-            # style = {'margin-left': '25px', 'margin-right': '25px'}
+            [html.P('This app predicts if a college in each county with the given parameters will have a \
+                booster mandate, given a vaccine mandate is in place. Note that it will not be entirely accurate \
+                as the mandates are difficult to predict, but should give a general idea of the trends.'),
+            ]# html.A('Booster model notebook', href='https://github.com/ncrispino/covid_university_dates/blob/master/Covid%20Booster%20Model.ipynb')]
+        ),
+        style={'margin-left': '50px', 'margin-right': '50px'}
+    ),
+    dbc.Row(
+        dbc.Col(            
+            dcc.Graph(id='map')       
         )
     ),
     # make note that says that counties that are not shaded did not have enough data to run the model
     dbc.Row(
         [dbc.Col('Type of School'),
         dbc.Col('Ranking'),
-        dbc.Col('Announce Date'),
+        dbc.Col('Announce Date of Vacc Mandate'),
         dbc.Col('Student Body Size')],
         style={'text-decoration': 'underline'}
     ),
@@ -71,7 +78,7 @@ children=[
                     {'label': 'Public', 'value': 'Public'},
                     {'label': 'Private', 'value': 'Private'},
                 ],
-                value='Public',
+                value='Private',
                 labelStyle={'display': 'inline-block'},
                 inputStyle={'margin-left': '10px', 'margin-right': '10px'},
                 )]
@@ -116,12 +123,18 @@ children=[
     dbc.Row(
         html.P('Counties that are not shaded did not have enough data to run the model', style={'font-size': '12px', 'font-style': 'italic'}),
         style={'margin-top': '10px'},
+    ),    
+    dbc.Row(
+        html.H3('Percent of Counties with Booster Mandates'),
+        style={'margin-top': '50px'},
     ),
-    # html.H3('Distribution of Values'),
-    # show the number of boosters from callback
-    html.H3('Number of Boosters'),
-    html.H4(id='number-of-boosters'),    
-    dcc.Graph(id='distribution-of-values'),  
+    dbc.Row(
+        [html.H4(id='number-of-boosters'),  
+         html.P('with probability cutoff 0.5')]
+    ),
+    dbc.Row(
+        dcc.Graph(id='distribution-of-values'),
+    ) 
 ])
 
 # Create callback for histogram using all the values provided and the update_prediction method below
@@ -144,15 +157,29 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     college_data_clean.drop(columns=['state', 'state_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
             inplace=True)    
     college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here          
-    college_data_booster = model.predict(college_data_clean.drop(columns='STCOUNTYFP').dropna())      
-    college_data_clean = college_data_clean.join(pd.Series(college_data_booster, name='booster'), how='right')    
+    college_data_booster = model.predict(college_data_clean.drop(columns='STCOUNTYFP').dropna())
+    college_data_booster_proba = model.predict_proba(college_data_clean.drop(columns='STCOUNTYFP').dropna())            
+    college_data_clean = college_data_clean.join(pd.Series(college_data_booster, name='booster'), how='right')
+    college_data_clean = college_data_clean.join(pd.DataFrame(college_data_booster_proba, columns=['0', 'Booster Probability']).drop(columns=['0']), how='right')
+    num_boosters = str(college_data_clean['booster'].sum()/college_data_clean.shape[0]*100) + '%'    
 
-    bar_fig = go.Figure()
-    # create bar graph with bars for 0 and 1 with space between them
-    booster_counts = college_data_clean['booster'].value_counts().values
-    if len(booster_counts) == 1:
-        booster_counts = np.append(booster_counts, 0)
-    bar_fig.add_trace(go.Bar(x=['0', '1'], y=[booster_counts[0], booster_counts[1]]))  
+    # create histogram of booster probabilities
+    hist_fig = go.Figure(data=[go.Histogram(
+        x=college_data_clean['Booster Probability'],
+        name='Booster Probability',
+        # marker_color='#3D9970'
+    )])
+    hist_fig.add_vline(x=0.5, line_dash='dash')
+    hist_fig.update_layout(xaxis_title_text='Booster Probability', yaxis_title_text='Count')
+    hist_fig.update_layout(title_x=0.5, title_y=0.9)
+    hist_fig.update_layout(margin=dict(l=50, r=50, t=50, b=50))
+    hist_fig.update_layout(xaxis=dict(
+        title='Booster Probability',
+    ))
+    hist_fig.update_layout(yaxis=dict(
+        title='Count',
+    ))
+    hist_fig.update_layout(autosize=False)        
 
     # create map of US by county shaded based on output from fitted model
     # first load geojson file for US counties
@@ -164,18 +191,21 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     college_data_discrete = college_data_clean.copy()   
     college_data_discrete['booster'] = college_data_discrete['booster'].astype('str') # so that a colormap doesn't show up--only 0 and 1
     map_fig = px.choropleth_mapbox(
-        college_data_discrete, geojson=counties, locations='STCOUNTYFP', color='booster',        
-        color_discrete_map={
-            '0': '#F4EC15',
-            '1': '#D95B43'
-        },                
+        college_data_clean, geojson=counties, locations='STCOUNTYFP', color='Booster Probability',    
+        color_continuous_scale=px.colors.sequential.Agsunset,        
+        color_continuous_midpoint=0.5,
+        # range_color=(0, 1),
+        # color_discrete_map={
+        #     '0': '#F4EC15',
+        #     '1': '#D95B43'
+        # },                
         mapbox_style="carto-positron",
         zoom=3, center={"lat": 37.0902, "lon": -95.7129},
         opacity=0.5,
         labels={'STCOUNTYFP': 'County'}
     )
     map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, legend={'orientation': 'h', 'y': 1, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top'})
-    return college_data_clean['booster'].sum(), bar_fig, map_fig
+    return num_boosters, hist_fig, map_fig
 
 if __name__ == '__main__':
     app.run_server(debug=True)    
