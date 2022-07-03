@@ -128,7 +128,7 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     with urlopen('https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json') as response:
         counties = json.load(response) 
     college_data_discrete = college_data_clean.copy()   
-    college_data_discrete['booster'] = college_data_discrete['booster'] .astype('str') # so that a colormap doesn't show up--only 0 and 1
+    college_data_discrete['booster'] = college_data_discrete['booster'].astype('str') # so that a colormap doesn't show up--only 0 and 1
     map_fig = px.choropleth_mapbox(
         college_data_discrete, geojson=counties, locations='STCOUNTYFP', color='booster',        
         color_discrete_map={
