@@ -20,7 +20,7 @@ import plotly.express as px
 import joblib
 # model = joblib.load('booster_dummy_model_jlib')
 # model = joblib.load('booster_log_model_jlib')
-model = joblib.load('booster_model_jlib')
+model = joblib.load('booster_model.joblib')
 
 # Create dash app
 app = dash.Dash()
@@ -37,14 +37,11 @@ app = dash.Dash()
 # apply basic HTML layout
 app.layout = html.Div(style={'textAlign': 'center', 'width': '100%', 'font-family': 'Verdana'}, 
 children=[
-    html.H1('Dashboard for Modeling'),
+    html.H1('Booster Mandate Predictor'),
     # show map from callback
-    dcc.Graph(id='map'), #, style={'width': '100%', 'height': '100%'}),
-    html.H3('Distribution of Values'),
-    dcc.Graph(id='distribution-of-values'),
-    # show the number of boosters from callback
-    html.H3('Number of Boosters'),
-    html.H4(id='number-of-boosters'),    
+    dcc.Graph(id='map'),
+    # make note that says that counties that are not shaded did not have enough data to run the model
+    html.P('Counties that are not shaded did not have enough data to run the model'),  
     html.H3('Type of School'),
     dcc.RadioItems(
         id='type',
@@ -75,10 +72,10 @@ children=[
     dcc.Slider(
         id='announce_date',
         min=0,
-        max=365,
+        max=200,
         step=1,
-        value=180,
-        marks={i: str(i) for i in range(0, 366, 10)}
+        value=20,
+        marks={i: str(i) for i in range(0, 201, 10)}
     ),
     html.H3('Update Student Body Size'),
     dcc.Slider(
@@ -88,7 +85,12 @@ children=[
         step=100,
         value=10000,
         marks={i: str(i) for i in range(0, 70001, 10000)}
-    )    
+    ),
+    html.H3('Distribution of Values'),
+    dcc.Graph(id='distribution-of-values'),
+    # show the number of boosters from callback
+    html.H3('Number of Boosters'),
+    html.H4(id='number-of-boosters'),      
 ])
 
 # Create callback for histogram using all the values provided and the update_prediction method below
@@ -100,8 +102,7 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     """
     Updates bar graph based on user-input. Note that in Sci-kit learn, the order of the columns matters. So, I need to transform my input.
     """
-    # get all county fips from file NEED TO FIX ORDER IN EXECUTION
-    # college_data = pd.read_csv('X_train_booster.csv')
+    # get data for all counties and merge with user-selected values 
     college_data = pd.read_csv('college_data_county.csv')
     column_names = college_data.columns
     college_data[['ranking', 'announce_date', 'Type']] = [ranking, announce_date, type]
@@ -111,14 +112,16 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     college_data_clean['STCOUNTYFP'] = college_data_clean['STCOUNTYFP'].astype(str).str.zfill(5) # so map can read
     college_data_clean.drop(columns=['state', 'state_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
             inplace=True)    
-    college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here  
-    print(college_data_clean.drop(columns='STCOUNTYFP').dropna()) # drop rows if there are NaN values in any columns
-    college_data_clean['booster'] = model.predict(college_data_clean.drop(columns='STCOUNTYFP').dropna())
-    # print(college_data_clean.drop(columns='STCOUNTYFP').dropna())
+    college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here          
+    college_data_booster = model.predict(college_data_clean.drop(columns='STCOUNTYFP').dropna())      
+    college_data_clean = college_data_clean.join(pd.Series(college_data_booster, name='booster'), how='right')    
 
     bar_fig = go.Figure()
     # create bar graph with bars for 0 and 1 with space between them
-    bar_fig.add_trace(go.Bar(x=['0', '1'], y=[college_data_clean['booster'].value_counts()[0], college_data_clean['booster'].value_counts()[1]]))  
+    booster_counts = college_data_clean['booster'].value_counts().values
+    if len(booster_counts) == 1:
+        booster_counts = np.append(booster_counts, 0)
+    bar_fig.add_trace(go.Bar(x=['0', '1'], y=[booster_counts[0], booster_counts[1]]))  
 
     # create map of US by county shaded based on output from fitted model
     # first load geojson file for US counties
@@ -134,7 +137,7 @@ def update_prediction(type, ranking, announce_date, student_body_size):
         color_discrete_map={
             '0': '#F4EC15',
             '1': '#D95B43'
-        },        
+        },                
         mapbox_style="carto-positron",
         zoom=3, center={"lat": 37.0902, "lon": -95.7129},
         opacity=0.5,
