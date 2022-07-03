@@ -153,6 +153,7 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     college_data = college_data[['ranking', 'announce_date', 'Type', *column_names]]
     college_data['ranking'] = pd.cut(college_data['ranking'], bins=[0, 20, 100, 200, 298, 400], labels=['a', 'b', 'c', 'd', 'e'], right=False)  # cut the ranking into 5 bins
     college_data_clean = college_data #.drop(columns=['state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'])  
+    college_data_clean['STCOUNTYFP_int'] = college_data_clean['STCOUNTYFP']
     college_data_clean['STCOUNTYFP'] = college_data_clean['STCOUNTYFP'].astype(str).str.zfill(5) # so map can read
     college_data_clean.drop(columns=['state', 'state_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
             inplace=True)    
@@ -161,7 +162,9 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     college_data_booster_proba = model.predict_proba(college_data_clean.drop(columns='STCOUNTYFP').dropna())            
     college_data_clean = college_data_clean.join(pd.Series(college_data_booster, name='booster'), how='right')
     college_data_clean = college_data_clean.join(pd.DataFrame(college_data_booster_proba, columns=['0', 'Booster Probability']).drop(columns=['0']), how='right')
-    num_boosters = str(college_data_clean['booster'].sum()/college_data_clean.shape[0]*100) + '%'    
+    num_boosters = str(college_data_clean['booster'].sum()/college_data_clean.shape[0]*100) + '%'
+    county_names = pd.read_csv('https://github.com/kjhealy/fips-codes/blob/master/state_and_county_fips_master.csv?raw=true').drop(columns=['state'])    
+    college_data_clean = college_data_clean.merge(county_names, left_on='STCOUNTYFP_int', right_on='fips', how='left')
 
     # create histogram of booster probabilities
     hist_fig = go.Figure(data=[go.Histogram(
@@ -202,7 +205,8 @@ def update_prediction(type, ranking, announce_date, student_body_size):
         mapbox_style="carto-positron",
         zoom=3, center={"lat": 37.0902, "lon": -95.7129},
         opacity=0.5,
-        labels={'STCOUNTYFP': 'County'}
+        labels={'STCOUNTYFP': 'County'},
+        hover_name='name'
     )
     map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, legend={'orientation': 'h', 'y': 1, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top'})
     return num_boosters, hist_fig, map_fig
