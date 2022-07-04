@@ -53,7 +53,7 @@ children=[
             [html.P('This app predicts if a college in each county with the given parameters will have a \
                 booster mandate, given a vaccine mandate is in place. Note that it will not be entirely accurate \
                 as the mandates are difficult to predict, but should give a general idea of the trends.'),
-            ]# html.A('Booster model notebook', href='https://github.com/ncrispino/covid_university_dates/blob/master/Covid%20Booster%20Model.ipynb')]
+            ]
         ),
         style={'margin-left': '50px', 'margin-right': '50px'}
     ),
@@ -61,8 +61,7 @@ children=[
         dbc.Col(            
             dcc.Graph(id='map')       
         )
-    ),
-    # make note that says that counties that are not shaded did not have enough data to run the model
+    ),    
     dbc.Row(
         [dbc.Col('Type of School'),
         dbc.Col('Ranking'),
@@ -134,6 +133,9 @@ children=[
     ),
     dbc.Row(
         dcc.Graph(id='distribution-of-values'),
+    ),
+    dbc.Row(
+        html.A('Jupyter notebook with details of model creation', href='https://github.com/ncrispino/covid_university_dates/blob/master/Covid%20Booster%20Model.ipynb')
     ) 
 ])
 
@@ -144,7 +146,7 @@ children=[
 # Note that Dash calls this method with default values when it starts.
 def update_prediction(type, ranking, announce_date, student_body_size):    
     """
-    Updates bar graph based on user-input. Note that in Sci-kit learn, the order of the columns matters. So, I need to transform my input.
+    Updates data and figures based on user-input. Note that in Sci-kit learn, the order of the columns matters, so I have to do some preprocessing.
     """
     # get data for all counties and merge with user-selected values 
     college_data = pd.read_csv('college_data_county.csv')
@@ -155,10 +157,10 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     college_data_clean = college_data #.drop(columns=['state', 'state_new', 'STCOUNTYFP', 'state_fips', 'county_fips', 'county_fips_str', 'State', 'State Code', 'Division'])  
     college_data_clean['STCOUNTYFP_int'] = college_data_clean['STCOUNTYFP']
     college_data_clean['STCOUNTYFP'] = college_data_clean['STCOUNTYFP'].astype(str).str.zfill(5) # so map can read
-    college_data_clean.drop(columns=['state', 'state_fips', 'county_fips_str', 'State', 'State Code', 'Division'], 
+    college_data_clean.drop(columns=['state', 'state_fips', 'county_fips_str', 'State Code', 'Division'], 
             inplace=True)    
     college_data_clean['2020.student.size'] = student_body_size # this is the last column for my sklearn features, so it also must be last here          
-    college_data_booster = model.predict(college_data_clean.drop(columns='STCOUNTYFP').dropna())
+    college_data_booster = model.predict(college_data_clean.drop(columns=['STCOUNTYFP', 'State']).dropna())
     college_data_booster_proba = model.predict_proba(college_data_clean.drop(columns='STCOUNTYFP').dropna())            
     college_data_clean = college_data_clean.join(pd.Series(college_data_booster, name='booster'), how='right')
     college_data_clean = college_data_clean.join(pd.DataFrame(college_data_booster_proba, columns=['0', 'Booster Probability']).drop(columns=['0']), how='right')
@@ -170,7 +172,7 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     hist_fig = go.Figure(data=[go.Histogram(
         x=college_data_clean['Booster Probability'],
         name='Booster Probability',
-        # marker_color='#3D9970'
+        marker_color='#3D9970'
     )])
     hist_fig.add_vline(x=0.5, line_dash='dash')
     hist_fig.update_layout(xaxis_title_text='Booster Probability', yaxis_title_text='Count')
@@ -196,17 +198,13 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     map_fig = px.choropleth_mapbox(
         college_data_clean, geojson=counties, locations='STCOUNTYFP', color='Booster Probability',    
         color_continuous_scale=px.colors.sequential.Agsunset,        
-        color_continuous_midpoint=0.5,
-        # range_color=(0, 1),
-        # color_discrete_map={
-        #     '0': '#F4EC15',
-        #     '1': '#D95B43'
-        # },                
+        color_continuous_midpoint=0.5,              
         mapbox_style="carto-positron",
         zoom=3, center={"lat": 37.0902, "lon": -95.7129},
         opacity=0.5,
         labels={'STCOUNTYFP': 'County'},
-        hover_name='name'
+        hover_name='name',
+        hover_data=['State', 'STCOUNTYFP', 'Booster Probability']
     )
     map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, legend={'orientation': 'h', 'y': 1, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top'})
     return num_boosters, hist_fig, map_fig
