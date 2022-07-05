@@ -3,27 +3,19 @@
 # Thanks to the author Pierre-Louis Bescond. Check out the article for more information.
 # Using https://towardsdatascience.com/3-easy-ways-to-make-your-dash-application-look-better-3e4cfefaf772 for styling advice.
 
-from distutils.log import debug
-from re import M
-from matplotlib.pyplot import figure
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import dash
 from dash import dcc
 from dash import html
-import dash_daq as daq
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 from dash_bootstrap_templates import load_figure_template
-import plotly.figure_factory as ff
 import plotly.express as px
 
 # import fitted model
-# from sklearn.externals import joblib
 import joblib
-# model = joblib.load('booster_dummy_model_jlib')
-# model = joblib.load('booster_log_model_jlib')
 model = joblib.load('booster_model.joblib')
 
 # Create dash app
@@ -146,7 +138,7 @@ children=[
 # Note that Dash calls this method with default values when it starts.
 def update_prediction(type, ranking, announce_date, student_body_size):    
     """
-    Updates data and figures based on user-input. Note that in Sci-kit learn, the order of the columns matters, so I have to do some preprocessing.
+    Updates data and figures for all counties based on user-input. Note that in Sci-kit learn, the order of the columns matters, so I have to do some preprocessing.
     """
     # get data for all counties and merge with user-selected values 
     college_data = pd.read_csv('college_data_county.csv')
@@ -193,8 +185,6 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     import json
     with urlopen('https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json') as response:
         counties = json.load(response) 
-    college_data_discrete = college_data_clean.copy()   
-    college_data_discrete['booster'] = college_data_discrete['booster'].astype('str') # so that a colormap doesn't show up--only 0 and 1
     map_fig = px.choropleth_mapbox(
         college_data_clean, geojson=counties, locations='STCOUNTYFP', color='Booster Probability',    
         color_continuous_scale=px.colors.sequential.Agsunset,        
@@ -210,7 +200,4 @@ def update_prediction(type, ranking, announce_date, student_body_size):
     return num_boosters, hist_fig, map_fig
 
 if __name__ == '__main__':
-    app.run_server(debug=True)    
-
-# Note: need to get list of counties and their data so that I don't have to call the api everytime. This can be accomplished by running cleaning.py; it's in the main method.
-# Also, need to fix the order of the columns in the csv file.
+    app.run_server(debug=True)
