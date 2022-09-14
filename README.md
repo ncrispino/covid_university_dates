@@ -1,5 +1,5 @@
 # covid_university_dates
-Predicting aspects of university COVID guidelines using machine learning.
+Predicting aspects of university COVID guidelines using machine learning. Read [my blog post](https://ncrispino.github.io/blog/projects/Predicting-University-Covid-Mandates/) for more.
 
 - Data cleaning is done in 'Analyzing Covid Decision Dates' with my own data. A generalized script is in cleaning.py, which is applied to the vaccine data in 'Vaccine Mandates.'
 - Preprocessing and model creation is done in 'Covid Booster Model.' Note that 'Covid Model Creation' was my first attempt at model creation where I used my own data, but it is unfinished, as I decided to use other data in the end.
